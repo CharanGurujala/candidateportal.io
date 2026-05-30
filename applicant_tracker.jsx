@@ -1,0 +1,631 @@
+import React, { useState, useEffect } from 'react';
+import { Trash2, Edit2, Plus, Search, Filter, Download } from 'lucide-react';
+
+const ApplicantTracker = () => {
+  const [applicants, setApplicants] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: 'dateApplied', direction: 'desc' });
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    position: '',
+    status: 'New',
+    dateOfBirth: '',
+    currentCTC: '',
+    expectedCTC: '',
+    totalExperience: '',
+    relevantExperience: '',
+    currentLocation: '',
+    notes: '',
+    dateApplied: new Date().toISOString().split('T')[0],
+  });
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('applicants');
+    if (saved) {
+      setApplicants(JSON.parse(saved));
+    }
+  }, []);
+
+  // Save to localStorage whenever applicants change
+  useEffect(() => {
+    localStorage.setItem('applicants', JSON.stringify(applicants));
+  }, [applicants]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (editingId) {
+      setApplicants(applicants.map(a => a.id === editingId ? { ...formData, id: editingId } : a));
+      setEditingId(null);
+    } else {
+      setApplicants([...applicants, { ...formData, id: Date.now() }]);
+    }
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      position: '',
+      status: 'New',
+      dateOfBirth: '',
+      currentCTC: '',
+      expectedCTC: '',
+      totalExperience: '',
+      relevantExperience: '',
+      currentLocation: '',
+      notes: '',
+      dateApplied: new Date().toISOString().split('T')[0],
+    });
+    setShowForm(false);
+  };
+
+  const handleEdit = (applicant) => {
+    setFormData(applicant);
+    setEditingId(applicant.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = (id) => {
+    setApplicants(applicants.filter(a => a.id !== id));
+  };
+
+  const handleSort = (key) => {
+    setSortConfig({
+      key,
+      direction: sortConfig.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc',
+    });
+  };
+
+  const filteredApplicants = applicants
+    .filter(a => filterStatus === 'All' || a.status === filterStatus)
+    .filter(a =>
+      a.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.position.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+
+  const statusColors = {
+    'New': 'bg-blue-50 text-blue-700 border-blue-200',
+    'Reviewing': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    'Interview Scheduled': 'bg-purple-50 text-purple-700 border-purple-200',
+    'Offer Extended': 'bg-green-50 text-green-700 border-green-200',
+    'Rejected': 'bg-red-50 text-red-700 border-red-200',
+    'Hired': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  };
+
+  const downloadCSV = () => {
+    const headers = ['Name', 'Email', 'Phone', 'Position', 'Location', 'Total Experience', 'Relevant Experience', 'Current CTC', 'Expected CTC', 'Status', 'Date Applied', 'Notes'];
+    const csv = [
+      headers.join(','),
+      ...filteredApplicants.map(a =>
+        [a.name, a.email, a.phone, a.position, a.currentLocation, a.totalExperience, a.relevantExperience, a.currentCTC, a.expectedCTC, a.status, a.dateApplied, `"${a.notes}"`].join(',')
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `applicants_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+  };
+
+  return (
+    <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+      {/* Header */}
+      <div style={{ backgroundColor: '#1a2332', color: 'white', padding: '2rem 0', borderBottom: '3px solid #00a8e8' }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 2rem' }}>
+          <h1 style={{ fontSize: '2rem', fontWeight: '700', margin: 0, letterSpacing: '-0.5px' }}>
+            Applicant Tracker
+          </h1>
+          <p style={{ fontSize: '0.9rem', color: '#cbd5e1', margin: '0.5rem 0 0 0' }}>
+            Manage and track your job applicants efficiently
+          </p>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '2rem' }}>
+        {/* Stats Bar */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+          {['All', 'New', 'Reviewing', 'Interview Scheduled', 'Offer Extended', 'Hired'].map(status => (
+            <div key={status} style={{
+              backgroundColor: 'white',
+              padding: '1rem',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              textAlign: 'center',
+            }}>
+              <div style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1a2332' }}>
+                {status === 'All' ? applicants.length : applicants.filter(a => a.status === status).length}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.5rem' }}>{status}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Controls */}
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ flex: 1, minWidth: '250px', position: 'relative' }}>
+            <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#94a3b8' }} />
+            <input
+              type="text"
+              placeholder="Search by name, email, or position..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 12px 10px 40px',
+                border: '1px solid #e2e8f0',
+                borderRadius: '6px',
+                fontSize: '0.9rem',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            style={{
+              padding: '10px 12px',
+              border: '1px solid #e2e8f0',
+              borderRadius: '6px',
+              fontSize: '0.9rem',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+            }}
+          >
+            <option>All</option>
+            <option>New</option>
+            <option>Reviewing</option>
+            <option>Interview Scheduled</option>
+            <option>Offer Extended</option>
+            <option>Rejected</option>
+            <option>Hired</option>
+          </select>
+
+          <button
+            onClick={downloadCSV}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: '#f1f5f9',
+              border: '1px solid #cbd5e1',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.9rem',
+              fontWeight: '500',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+          >
+            <Download size={16} /> Export
+          </button>
+
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              setEditingId(null);
+              setFormData({
+                name: '',
+                email: '',
+                phone: '',
+                position: '',
+                status: 'New',
+                dateOfBirth: '',
+                currentCTC: '',
+                expectedCTC: '',
+                totalExperience: '',
+                relevantExperience: '',
+                currentLocation: '',
+                notes: '',
+                dateApplied: new Date().toISOString().split('T')[0],
+              });
+            }}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: '#00a8e8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '0.9rem',
+              fontWeight: '600',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0088b8'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00a8e8'}
+          >
+            <Plus size={16} /> Add Applicant
+          </button>
+        </div>
+
+        {/* Form */}
+        {showForm && (
+          <div style={{
+            backgroundColor: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            marginBottom: '2rem',
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          }}>
+            <h2 style={{ marginTop: 0, marginBottom: '1.5rem', color: '#1a2332', fontSize: '1.3rem' }}>
+              {editingId ? 'Edit Applicant' : 'Add New Applicant'}
+            </h2>
+            <form onSubmit={handleSubmit}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Full Name *"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="email"
+                  placeholder="Email *"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="tel"
+                  placeholder="Phone Number"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Position Applied For *"
+                  value={formData.position}
+                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                  required
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    backgroundColor: 'white',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option>New</option>
+                  <option>Reviewing</option>
+                  <option>Interview Scheduled</option>
+                  <option>Offer Extended</option>
+                  <option>Rejected</option>
+                  <option>Hired</option>
+                </select>
+                <input
+                  type="date"
+                  placeholder="Date of Birth"
+                  value={formData.dateOfBirth}
+                  onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Current CTC"
+                  value={formData.currentCTC}
+                  onChange={(e) => setFormData({ ...formData, currentCTC: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Expected CTC"
+                  value={formData.expectedCTC}
+                  onChange={(e) => setFormData({ ...formData, expectedCTC: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Total Years of Experience"
+                  value={formData.totalExperience}
+                  onChange={(e) => setFormData({ ...formData, totalExperience: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Relevant Experience"
+                  value={formData.relevantExperience}
+                  onChange={(e) => setFormData({ ...formData, relevantExperience: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Current Location"
+                  value={formData.currentLocation}
+                  onChange={(e) => setFormData({ ...formData, currentLocation: e.target.value })}
+                  style={{
+                    padding: '10px 12px',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    fontSize: '0.9rem',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+              <textarea
+                placeholder="Notes (optional)"
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '6px',
+                  fontSize: '0.9rem',
+                  boxSizing: 'border-box',
+                  minHeight: '100px',
+                  marginBottom: '1.5rem',
+                  fontFamily: 'inherit',
+                }}
+              />
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#00a8e8',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#0088b8'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#00a8e8'}
+                >
+                  {editingId ? 'Update' : 'Save'} Applicant
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(false);
+                    setEditingId(null);
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#f1f5f9',
+                    color: '#1a2332',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* Table */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          border: '1px solid #e2e8f0',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          overflow: 'hidden',
+        }}>
+          {filteredApplicants.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+              <p style={{ fontSize: '1rem', margin: 0 }}>No applicants found. Start adding applicants to begin tracking.</p>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '2px solid #e2e8f0' }}>
+                    {['name', 'email', 'phone', 'position', 'currentLocation', 'totalExperience', 'relevantExperience', 'currentCTC', 'expectedCTC', 'status', 'dateApplied'].map(key => (
+                      <th
+                        key={key}
+                        onClick={() => handleSort(key)}
+                        style={{
+                          padding: '1rem',
+                          textAlign: 'left',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          color: '#475569',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#e2e8f0'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                      >
+                        {key === 'name' ? 'Name' : key === 'email' ? 'Email' : key === 'phone' ? 'Phone' : key === 'position' ? 'Position' : key === 'currentLocation' ? 'Location' : key === 'totalExperience' ? 'Total Exp.' : key === 'relevantExperience' ? 'Relevant Exp.' : key === 'currentCTC' ? 'Current CTC' : key === 'expectedCTC' ? 'Expected CTC' : key === 'status' ? 'Status' : 'Date Applied'} ⇅
+                      </th>
+                    ))}
+                    <th style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: '600', color: '#475569' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredApplicants.map((applicant, idx) => (
+                    <tr
+                      key={applicant.id}
+                      style={{
+                        borderBottom: '1px solid #e2e8f0',
+                        backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f8f9fa',
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = idx % 2 === 0 ? '#ffffff' : '#f8f9fa'}
+                    >
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', fontWeight: '500', color: '#1a2332' }}>{applicant.name}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#00a8e8' }}>{applicant.email}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{applicant.phone || '—'}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#1a2332' }}>{applicant.position}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{applicant.currentLocation || '—'}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{applicant.totalExperience || '—'}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{applicant.relevantExperience || '—'}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{applicant.currentCTC || '—'}</td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{applicant.expectedCTC || '—'}</td>
+                      <td style={{ padding: '1rem' }}>
+                        <span style={{
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '0.85rem',
+                          fontWeight: '600',
+                          ...((statusColors[applicant.status] || 'bg-gray-50 text-gray-700').split(' ').reduce((acc, cls) => {
+                            if (cls.startsWith('bg-')) {
+                              acc.backgroundColor = cls.replace('bg-', '') === 'blue-50' ? '#eff6ff' : cls.replace('bg-', '') === 'yellow-50' ? '#fefce8' : cls.replace('bg-', '') === 'purple-50' ? '#f3e8ff' : cls.replace('bg-', '') === 'green-50' ? '#f0fdf4' : cls.replace('bg-', '') === 'red-50' ? '#fef2f2' : cls.replace('bg-', '') === 'emerald-50' ? '#f0fdf4' : '#f8fafc';
+                            } else if (cls.startsWith('text-')) {
+                              acc.color = cls.replace('text-', '') === 'blue-700' ? '#0c63e4' : cls.replace('text-', '') === 'yellow-700' ? '#ca8a04' : cls.replace('text-', '') === 'purple-700' ? '#7e22ce' : cls.replace('text-', '') === 'green-700' ? '#16a34a' : cls.replace('text-', '') === 'red-700' ? '#b91c1c' : cls.replace('text-', '') === 'emerald-700' ? '#047857' : '#64748b';
+                            }
+                            return acc;
+                          }, {}))
+                        }}>
+                          {applicant.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '1rem', fontSize: '0.9rem', color: '#64748b' }}>{new Date(applicant.dateApplied).toLocaleDateString()}</td>
+                      <td style={{ padding: '1rem', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                          <button
+                            onClick={() => handleEdit(applicant)}
+                            style={{
+                              padding: '6px 10px',
+                              backgroundColor: '#f1f5f9',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#e2e8f0';
+                              e.currentTarget.style.color = '#1a2332';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#f1f5f9';
+                              e.currentTarget.style.color = '#64748b';
+                            }}
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(applicant.id)}
+                            style={{
+                              padding: '6px 10px',
+                              backgroundColor: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              color: '#dc2626',
+                              transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fee2e2';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = '#fef2f2';
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: '2rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem' }}>
+          <p>Showing {filteredApplicants.length} of {applicants.length} applicants • All data saved locally</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ApplicantTracker;
